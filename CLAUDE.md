@@ -4,6 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @AGENTS.md
 
+## Project documents
+
+These are imported as part of the project instructions. They hold the detailed requirements. This file only summarizes the rules that apply to every task.
+
+- Product requirements, user stories, and acceptance criteria: @docs/PRD.md
+- Proposed architecture, data model, guards, and open decisions (§12): @docs/architecture.md
+- Testing strategy, TDD checkpoints, and planned CI: @docs/testing.md
+- Security requirements and the PR security checklist: @docs/security.md
+
+Items marked **⚠ Needs team decision** or **(Proposed)** in these documents aren't settled. Don't implement them as requirements until the team records a decision. When this file and a document disagree, ask the human.
+
 ## Project
 
 BorrowLoop is a community lending platform for university students and neighbors. Members lend each other items such as tools, textbooks, cameras, and appliances for short periods instead of buying them. It is the team's AI Coding Project 3 application.
@@ -32,7 +43,22 @@ BorrowLoop is a community lending platform for university students and neighbors
 | CI/CD | GitHub Actions |
 | Hosting | Vercel |
 
-Planned docs (`docs/PRD.md`, `docs/architecture.md`, `docs/testing.md`, `docs/security.md`) **do not exist yet**. Don't reference or import them until they're added.
+## Project coordination
+
+Confirmed sprint schedule (story details in `docs/PRD.md`):
+
+| Sprint | Dates | Stories |
+| --- | --- | --- |
+| Sprint 1 | Nov 19–30, 2026 | US-1, US-2, US-3 |
+| Sprint 2 | Dec 1–7, 2026 | US-4, US-5, US-6 |
+| Sprint 3 | Dec 8–15, 2026 | US-7, US-8, US-9; US-10 optional |
+
+Confirmed Sprint 1 ownership:
+
+- **Pranav:** Claude Code setup, GitHub Actions CI/CD, US-1 (authentication and community membership), US-3 (availability).
+- **Aarushi:** PostgreSQL/Prisma schema coordination, Cloudinary, task board, US-2 (photo-to-listing).
+
+Ownership for Sprint 2, Sprint 3, and the Borrow Match agent is **undecided**. Don't assume an owner for those stories.
 
 ## Commands
 
