@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      # Current stacked-PR base branches. Remove these once they merge into main.
+      - chore/project3-scaffold
+      - chore/claude-code-setup
+  push:
+    branches:
+      - main
+
+# Least privilege: the workflow only needs to read the repository.
+permissions:
+  contents: read
+
+# Cancel superseded runs for the same PR or branch.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, type-check, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      # LayoutProps/PageProps and next-env.d.ts are generated (and gitignored),
+      # so a fresh checkout needs them before tsc can run.
+      - name: Generate Next.js types
+        run: npx next typegen
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
