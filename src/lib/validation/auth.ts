@@ -32,3 +32,20 @@ export function parseCallbackUrl(input: unknown): string {
   const parsed = callbackPathSchema.safeParse(input);
   return parsed.success ? parsed.data : DEFAULT_CALLBACK_PATH;
 }
+
+/**
+ * Reads the sign-in page's search params.
+ *
+ * - `callbackUrl` is reduced to a safe same-origin path.
+ * - `error` (set by Auth.js after a failed sign-in) becomes a boolean, so its
+ *   value is never shown to the user.
+ */
+export function parseSignInSearchParams(
+  params: Record<string, string | string[] | undefined>,
+): { callbackUrl: string; hasError: boolean } {
+  const { error } = params;
+  return {
+    callbackUrl: parseCallbackUrl(params.callbackUrl),
+    hasError: Array.isArray(error) ? error.length > 0 : Boolean(error),
+  };
+}

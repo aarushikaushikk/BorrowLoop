@@ -2,8 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { parseCallbackUrl } from "@/lib/validation/auth";
-import { SIGN_IN_PATH } from "@/server/auth/config";
+import { signInPathFor } from "@/lib/auth/routes";
 
 /** The signed-in user, narrowed to what the app needs. No email or tokens. */
 export type CurrentUser = { id: string; name: string | null; image: string | null };
@@ -40,8 +39,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 export async function requireUser(callbackPath?: unknown): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) {
-    const callbackUrl = encodeURIComponent(parseCallbackUrl(callbackPath));
-    redirect(`${SIGN_IN_PATH}?callbackUrl=${callbackUrl}`);
+    redirect(signInPathFor(callbackPath));
   }
   return user;
 }

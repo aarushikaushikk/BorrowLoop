@@ -1,5 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_CALLBACK_PATH, parseCallbackUrl } from "@/lib/validation/auth";
+import {
+  DEFAULT_CALLBACK_PATH,
+  parseCallbackUrl,
+  parseSignInSearchParams,
+} from "@/lib/validation/auth";
+
+describe("parseSignInSearchParams", () => {
+  it("keeps a safe callbackUrl and reports no error", () => {
+    expect(parseSignInSearchParams({ callbackUrl: "/c/clx0community0001" })).toEqual({
+      callbackUrl: "/c/clx0community0001",
+      hasError: false,
+    });
+  });
+
+  it.each([
+    ["no params", {}],
+    ["an external callbackUrl", { callbackUrl: "https://evil.example" }],
+    ["repeated callbackUrl params", { callbackUrl: ["/a", "/b"] }],
+  ])("falls back to the default callbackUrl for %s", (_label, params) => {
+    expect(parseSignInSearchParams(params).callbackUrl).toBe(DEFAULT_CALLBACK_PATH);
+  });
+
+  it.each([
+    ["an Auth.js error code", { error: "OAuthCallbackError" }],
+    ["an unexpected error value", { error: "<script>alert(1)</script>" }],
+    ["repeated error params", { error: ["a", "b"] }],
+  ])("reports an error for %s without exposing its value", (_label, params) => {
+    expect(parseSignInSearchParams(params)).toEqual({
+      callbackUrl: DEFAULT_CALLBACK_PATH,
+      hasError: true,
+    });
+  });
+
+  it("ignores an empty error param", () => {
+    expect(parseSignInSearchParams({ error: "" }).hasError).toBe(false);
+  });
+});
 
 describe("parseCallbackUrl", () => {
   it("uses /communities as the default destination", () => {

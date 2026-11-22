@@ -13,10 +13,17 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],
-      // Server modules, shared validation, and the proxy. Pages and layouts
-      // are covered by end-to-end tests instead (Vitest can't render async
-      // Server Components).
-      include: ["src/server/**/*.ts", "src/lib/**/*.ts", "src/proxy.ts"],
+      // Server modules, shared validation, the proxy, Server Actions, and
+      // server-rendered content components. Pages and layouts are covered by
+      // end-to-end tests instead (Vitest can't render async Server Components
+      // inside Suspense).
+      include: [
+        "src/server/**/*.ts",
+        "src/lib/**/*.ts",
+        "src/proxy.ts",
+        "src/app/**/actions.ts",
+        "src/app/**/*-content.tsx",
+      ],
       exclude: ["src/**/*.test.ts", "src/test/**"],
       // The 70% threshold (docs/testing.md) is enforced once application
       // tests exist.

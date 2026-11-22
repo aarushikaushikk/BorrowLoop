@@ -2,6 +2,7 @@ import "server-only";
 import type { NextAuthConfig, Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import Google from "next-auth/providers/google";
+import { SIGN_IN_PATH } from "@/lib/auth/routes";
 
 /**
  * Auth.js configuration for BorrowLoop.
@@ -20,7 +21,7 @@ import Google from "next-auth/providers/google";
  * session strategy is revisited.
  */
 
-export const SIGN_IN_PATH = "/sign-in";
+export { SIGN_IN_PATH };
 
 /** Only Google sign-ins are accepted, whatever the account's email domain. */
 export function allowGoogleSignIn(params: {
