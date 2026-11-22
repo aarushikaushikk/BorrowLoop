@@ -6,8 +6,10 @@ import type { MembershipLookup } from "@/server/auth/membership";
 import { getDb } from "@/server/db/client";
 import type { MembershipRole, MembershipSnapshot } from "@/server/domain/access";
 
-/** The only Prisma delegate this module touches. */
+/** The Prisma delegates membership reads use. */
 type MembershipDb = Pick<PrismaClient, "membership">;
+/** Discovery and joining also read communities. */
+type CommunityMembershipDb = Pick<PrismaClient, "membership" | "community">;
 
 /**
  * Prisma-backed `MembershipLookup` for `authorizeCommunity`.
@@ -78,6 +80,72 @@ export async function getAdministeredCommunity(
     select: { community: { select: { id: true, name: true } } },
   });
   return membership?.community ?? null;
+}
+
+/** A community open to join: only what the Discover list needs. */
+export type JoinableCommunity = { id: string; name: string; description: string | null };
+
+/**
+ * Communities `user` hasn't joined, sorted by name.
+ *
+ * Communities are open in v1 (decision D-1): any signed-in user may discover
+ * and join any community. Only the name and description are exposed, never
+ * members, roles, or listings.
+ */
+export async function listJoinableCommunities(
+  user: AuthenticatedUser,
+  getClient: () => CommunityMembershipDb = getDb,
+): Promise<JoinableCommunity[]> {
+  return getClient().community.findMany({
+    where: { memberships: { none: { userId: user.id } } },
+    select: { id: true, name: true, description: true },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+  });
+}
+
+export type JoinCommunityResult = "joined" | "already_member" | "not_found";
+
+/** Prisma's error code for a foreign key violation. */
+const FOREIGN_KEY_VIOLATION = "P2003";
+
+function isForeignKeyViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === FOREIGN_KEY_VIOLATION;
+}
+
+/**
+ * Adds `user` to a community as a MEMBER.
+ *
+ * - `user` must come from the server session; the role is always MEMBER.
+ * - A missing community creates nothing (`not_found`).
+ * - The insert is `INSERT … ON CONFLICT DO NOTHING` on the (userId,
+ *   communityId) unique key (`skipDuplicates`), so duplicate or concurrent
+ *   joins can't create a second row or fail, and an existing membership,
+ *   including an ADMIN one, is never modified (`already_member`).
+ * - If the community is deleted between the check and the insert, the foreign
+ *   key rejects the row and the result is `not_found`.
+ */
+export async function joinCommunityAsMember(
+  user: AuthenticatedUser,
+  communityId: string,
+  getClient: () => CommunityMembershipDb = getDb,
+): Promise<JoinCommunityResult> {
+  const db = getClient();
+  const community = await db.community.findUnique({ where: { id: communityId }, select: { id: true } });
+  if (!community) {
+    return "not_found";
+  }
+  try {
+    const { count } = await db.membership.createMany({
+      data: [{ userId: user.id, communityId: community.id, role: "MEMBER" }],
+      skipDuplicates: true,
+    });
+    return count === 1 ? "joined" : "already_member";
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      return "not_found";
+    }
+    throw error;
+  }
 }
 
 // Compile-time contract: Prisma's CommunityRole enum and the role type used by

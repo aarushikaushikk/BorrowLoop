@@ -2,8 +2,14 @@ import Link from "next/link";
 import { connection } from "next/server";
 import type { ReactElement } from "react";
 import { signOutAction } from "@/app/(app)/communities/actions";
+import { JoinCommunityForm } from "@/app/(app)/communities/join-community-form";
 import { requireUser } from "@/server/auth/session";
-import { listCommunitiesForUser, type UserCommunity } from "@/server/dal/memberships";
+import {
+  listCommunitiesForUser,
+  listJoinableCommunities,
+  type JoinableCommunity,
+  type UserCommunity,
+} from "@/server/dal/memberships";
 
 /**
  * The signed-in part of /communities.
@@ -19,7 +25,10 @@ export async function CommunitiesContent(): Promise<ReactElement> {
   // which Cache Components doesn't allow during prerendering.
   await connection();
   const user = await requireUser("/communities");
-  const communities = await listCommunitiesForUser({ id: user.id });
+  const [communities, joinable] = await Promise.all([
+    listCommunitiesForUser({ id: user.id }),
+    listJoinableCommunities({ id: user.id }),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -48,7 +57,7 @@ export async function CommunitiesContent(): Promise<ReactElement> {
           <div className="rounded-2xl border border-dashed border-black/15 p-6 dark:border-white/20">
             <p className="text-sm font-medium">You&apos;re not a member of any community yet.</p>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-              Communities you join will appear here.
+              Join one below to see its listings.
             </p>
           </div>
         ) : (
@@ -59,7 +68,44 @@ export async function CommunitiesContent(): Promise<ReactElement> {
           </ul>
         )}
       </section>
+
+      <section aria-labelledby="discover-heading" className="flex flex-col gap-4">
+        <div>
+          <h2 id="discover-heading" className="text-lg font-semibold">
+            Discover communities
+          </h2>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+            Communities are open: join any of them to see and share its listings.
+          </p>
+        </div>
+        {joinable.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-black/15 p-6 text-sm text-zinc-600 dark:border-white/20 dark:text-zinc-400">
+            There are no other communities to join right now.
+          </p>
+        ) : (
+          <ul aria-labelledby="discover-heading" className="flex flex-col gap-3">
+            {joinable.map((community) => (
+              <JoinableCommunityCard key={community.id} community={community} />
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
+  );
+}
+
+/** A community the user can join: name, description, and the Join button. */
+function JoinableCommunityCard({ community }: { community: JoinableCommunity }): ReactElement {
+  return (
+    <li className="flex flex-col gap-3 rounded-2xl border border-black/10 p-5 sm:flex-row sm:items-start sm:justify-between dark:border-white/15">
+      <div>
+        <h3 className="text-base font-semibold">{community.name}</h3>
+        {community.description ? (
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{community.description}</p>
+        ) : null}
+      </div>
+      <JoinCommunityForm communityId={community.id} communityName={community.name} />
+    </li>
   );
 }
 
@@ -88,6 +134,12 @@ function CommunityCard({ community }: { community: UserCommunity }): ReactElemen
       {community.description ? (
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{community.description}</p>
       ) : null}
+      <Link
+        href={`/c/${community.id}`}
+        className="mt-3 inline-block text-sm font-medium text-emerald-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 dark:text-emerald-400"
+      >
+        View listings →
+      </Link>
     </li>
   );
 }
