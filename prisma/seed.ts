@@ -1,5 +1,6 @@
 // Seeds one community, two users and a few items for local development.
-// Safe to re-run: it upserts the fixed rows and recreates the seed items.
+// Safe to re-run: it only creates or updates its own rows and never deletes,
+// so other communities' items and any borrow requests or loans are untouched.
 // Run with: npm run db:seed
 import "dotenv/config";
 import { createPrismaClient } from "../src/lib/prisma";
@@ -36,9 +37,6 @@ async function main() {
     }),
   );
 
-  // Recreate seed items so re-running doesn't pile up duplicates.
-  await db.item.deleteMany({ where: { ownerId: { in: [alice.id, bob.id] } } });
-
   const items = [
     {
       ownerId: alice.id,
@@ -70,22 +68,32 @@ async function main() {
     },
   ];
 
-  for (const item of items) {
-    await db.item.create({
-      data: { ...item, communityId: community.id, status: "PUBLISHED" },
+  // Item has no natural unique key, so match a seed item by
+  // (community, owner, title), scoped to the seeded community only.
+  const seeded = [];
+  for (const { ownerId, title, ...fields } of items) {
+    const existing = await db.item.findFirst({
+      where: { communityId: community.id, ownerId, title },
+      select: { id: true },
     });
+    const data = { ...fields, status: "PUBLISHED" as const };
+    seeded.push(
+      existing
+        ? await db.item.update({ where: { id: existing.id }, data })
+        : await db.item.create({ data: { ...data, ownerId, title, communityId: community.id } }),
+    );
   }
 
   // One blocked date range so availability (US-3) has something to show.
-  const drill = await db.item.findFirstOrThrow({ where: { ownerId: alice.id, title: "Cordless drill" } });
-  await db.availability.create({
-    data: {
-      itemId: drill.id,
-      startDate: new Date("2026-12-24"),
-      endDate: new Date("2026-12-27"),
-      note: "Away for the holidays",
-    },
-  });
+  const drill = seeded.find((item) => item.title === "Cordless drill")!;
+  const blocked = {
+    itemId: drill.id,
+    startDate: new Date("2026-12-24"),
+    endDate: new Date("2026-12-27"),
+  };
+  if (!(await db.availability.findFirst({ where: blocked }))) {
+    await db.availability.create({ data: { ...blocked, note: "Away for the holidays" } });
+  }
 
   console.log(`Seeded "${community.name}" with ${USERS.length} users and ${items.length} items.`);
 }
