@@ -4,9 +4,9 @@ import type { MembershipSnapshot } from "@/server/domain/access";
 /**
  * Database integration boundary for community membership.
  *
- * US-1 code depends only on this interface. The real implementation (a
- * Prisma-backed data access function) belongs to the database integration
- * work coordinated with Aarushi and is not part of this module.
+ * Authorization code depends only on this interface, so the guards stay
+ * testable with fakes. The Prisma-backed implementation is
+ * `createMembershipLookup` in `src/server/dal/memberships.ts`.
  *
  * Implementations must look up the membership for exactly the given user and
  * community, and return `null` when none exists.
