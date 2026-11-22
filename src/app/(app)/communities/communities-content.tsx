@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import type { ReactElement } from "react";
 import { signOutAction } from "@/app/(app)/communities/actions";
 import { requireUser } from "@/server/auth/session";
@@ -14,6 +15,9 @@ import { listCommunitiesForUser, type UserCommunity } from "@/server/dal/members
  * `<Suspense>` boundary.
  */
 export async function CommunitiesContent(): Promise<ReactElement> {
+  // Request time only: the session check (Auth.js) generates random values,
+  // which Cache Components doesn't allow during prerendering.
+  await connection();
   const user = await requireUser("/communities");
   const communities = await listCommunitiesForUser({ id: user.id });
 

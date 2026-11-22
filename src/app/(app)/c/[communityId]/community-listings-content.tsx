@@ -1,15 +1,10 @@
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import type { ReactElement } from "react";
+import { communityPathFor } from "@/lib/auth/routes";
 import { ITEM_CATEGORY_LABELS, ITEM_CONDITION_LABELS } from "@/lib/items/labels";
-import { communityParamsSchema } from "@/lib/validation/community";
 import { getCommunityAccess } from "@/server/auth/community-access";
 import { getCommunityWithListings, type CommunityListing } from "@/server/dal/listings";
-
-/** Where to return after sign-in: this community if the ID is valid, else /communities. */
-function callbackPathFor(params: unknown): string {
-  const parsed = communityParamsSchema.safeParse(params);
-  return parsed.success ? `/c/${parsed.data.communityId}` : "/communities";
-}
 
 /**
  * The member-only part of /c/[communityId].
@@ -25,11 +20,14 @@ function callbackPathFor(params: unknown): string {
  * `<Suspense>` boundary.
  */
 export async function CommunityListingsContent({ params }: { params: Promise<unknown> }): Promise<ReactElement> {
+  // Request time only: the session check (Auth.js) generates random values,
+  // which Cache Components doesn't allow during prerendering.
+  await connection();
   const routeParams = await params;
   const { user, access } = await getCommunityAccess({
     params: routeParams,
     level: "member",
-    callbackPath: callbackPathFor(routeParams),
+    callbackPath: communityPathFor(routeParams),
   });
   if (access.decision !== "allow") {
     notFound();

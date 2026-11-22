@@ -63,6 +63,23 @@ export async function listCommunitiesForUser(
   return memberships.map(({ role, community }) => ({ ...community, role }));
 }
 
+/**
+ * The community `user` administers, or `null` when it doesn't exist or `user`
+ * isn't an ADMIN of it. Scoped in the query by the session user's ID and the
+ * ADMIN role, as defence in depth behind `getCommunityAccess(level: "admin")`.
+ */
+export async function getAdministeredCommunity(
+  user: AuthenticatedUser,
+  communityId: string,
+  getClient: () => MembershipDb = getDb,
+): Promise<{ id: string; name: string } | null> {
+  const membership = await getClient().membership.findFirst({
+    where: { userId: user.id, communityId, role: "ADMIN" },
+    select: { community: { select: { id: true, name: true } } },
+  });
+  return membership?.community ?? null;
+}
+
 // Compile-time contract: Prisma's CommunityRole enum and the role type used by
 // the pure access rules must stay identical. A new or renamed role in either
 // place fails `tsc` here.

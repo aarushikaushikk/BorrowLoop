@@ -4,6 +4,13 @@ import { signOutAction } from "@/app/(app)/communities/actions";
 import { CommunitiesContent } from "@/app/(app)/communities/communities-content";
 import type { UserCommunity } from "@/server/dal/memberships";
 
+// connection() only works inside a real Next.js request; it is a no-op here.
+const { connectionMock } = vi.hoisted(() => ({ connectionMock: vi.fn(async () => {}) }));
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  connection: connectionMock,
+}));
+
 const { requireUserMock, listCommunitiesMock, signOutMock } = vi.hoisted(() => ({
   requireUserMock: vi.fn<
     (callbackPath?: unknown) => Promise<{ id: string; name: string | null; image: string | null }>
@@ -51,6 +58,21 @@ function communityNames(html: string): string[] {
 }
 
 describe("CommunitiesContent session handling", () => {
+  it("waits for the request (connection) before checking the session", async () => {
+    const order: string[] = [];
+    connectionMock.mockImplementationOnce(async () => {
+      order.push("connection");
+    });
+    requireUserMock.mockImplementationOnce(async () => {
+      order.push("requireUser");
+      return SESSION_USER;
+    });
+
+    await CommunitiesContent();
+
+    expect(order).toEqual(["connection", "requireUser"]);
+  });
+
   it("requires a server-side session, returning to /communities after sign-in", async () => {
     await CommunitiesContent();
 

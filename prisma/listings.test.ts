@@ -4,6 +4,13 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 import { CommunityListingsContent } from "@/app/(app)/c/[communityId]/community-listings-content";
 import { createPrismaClient } from "../src/lib/prisma";
 
+// connection() only works inside a real Next.js request; it is a no-op here.
+const { connectionMock } = vi.hoisted(() => ({ connectionMock: vi.fn(async () => {}) }));
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  connection: connectionMock,
+}));
+
 vi.mock("server-only", () => ({}));
 
 // The signed-in user is simulated (the session layer is covered elsewhere);

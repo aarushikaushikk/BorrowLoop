@@ -4,6 +4,13 @@ import { CommunityListingsContent } from "@/app/(app)/c/[communityId]/community-
 import type { CommunityAccessResult } from "@/server/auth/guards";
 import type { CommunityWithListings } from "@/server/dal/listings";
 
+// connection() only works inside a real Next.js request; it is a no-op here.
+const { connectionMock } = vi.hoisted(() => ({ connectionMock: vi.fn(async () => {}) }));
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  connection: connectionMock,
+}));
+
 const { getCommunityAccessMock, getListingsMock, notFoundMock } = vi.hoisted(() => ({
   getCommunityAccessMock: vi.fn<
     (input: { params: unknown; level: "member" | "admin"; callbackPath: string }) => Promise<{
@@ -48,6 +55,21 @@ function renderFor(params: unknown) {
 }
 
 describe("CommunityListingsContent authorization", () => {
+  it("waits for the request (connection) before checking access", async () => {
+    const order: string[] = [];
+    connectionMock.mockImplementationOnce(async () => {
+      order.push("connection");
+    });
+    getCommunityAccessMock.mockImplementationOnce(async () => {
+      order.push("getCommunityAccess");
+      return { user: SESSION_USER, access: ALLOW };
+    });
+
+    await renderFor({ communityId: COMMUNITY_ID });
+
+    expect(order).toEqual(["connection", "getCommunityAccess"]);
+  });
+
   it("checks member-level access with the route params, returning here after sign-in", async () => {
     await renderFor({ communityId: COMMUNITY_ID });
 

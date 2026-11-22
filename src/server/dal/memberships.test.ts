@@ -1,23 +1,48 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@/generated/prisma/client";
-import { createMembershipLookup, listCommunitiesForUser } from "@/server/dal/memberships";
+import { createMembershipLookup, getAdministeredCommunity, listCommunitiesForUser } from "@/server/dal/memberships";
 
 vi.mock("server-only", () => ({}));
 
-const { findUnique, findMany } = vi.hoisted(() => ({
+const { findUnique, findMany, findFirst } = vi.hoisted(() => ({
   findUnique: vi.fn(),
   findMany: vi.fn(),
+  findFirst: vi.fn(),
 }));
 
 // Stand-in for the one delegate the module uses. The generated client type is
 // far larger than this fake, hence the cast.
-const fakeDb = { membership: { findUnique, findMany } } as unknown as Pick<PrismaClient, "membership">;
+const fakeDb = { membership: { findUnique, findMany, findFirst } } as unknown as Pick<PrismaClient, "membership">;
 const getClient = vi.fn(() => fakeDb);
 
 beforeEach(() => {
   findUnique.mockReset();
   findMany.mockReset();
+  findFirst.mockReset();
   getClient.mockClear();
+});
+
+describe("getAdministeredCommunity", () => {
+  it("requires an ADMIN membership of the session user in that community", async () => {
+    findFirst.mockResolvedValue(null);
+
+    await getAdministeredCommunity({ id: "user-1" }, "community-1", getClient);
+
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { userId: "user-1", communityId: "community-1", role: "ADMIN" },
+      select: { community: { select: { id: true, name: true } } },
+    });
+  });
+
+  it("returns the community for an admin, or null otherwise", async () => {
+    findFirst.mockResolvedValueOnce({ community: { id: "community-1", name: "Alpha" } }).mockResolvedValueOnce(null);
+
+    await expect(getAdministeredCommunity({ id: "user-1" }, "community-1", getClient)).resolves.toEqual({
+      id: "community-1",
+      name: "Alpha",
+    });
+    await expect(getAdministeredCommunity({ id: "user-1" }, "community-1", getClient)).resolves.toBeNull();
+  });
 });
 
 describe("createMembershipLookup", () => {
