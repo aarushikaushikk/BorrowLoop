@@ -13,15 +13,27 @@ import { SIGN_IN_PATH } from "@/lib/auth/routes";
  * - Credentials come from the environment, never from code: Auth.js reads
  *   `AUTH_SECRET`, `AUTH_GOOGLE_ID`, and `AUTH_GOOGLE_SECRET` at runtime.
  *
- * TEMPORARY: JWT sessions without a database adapter. Without an adapter,
- * Auth.js assigns a fresh random user ID at each sign-in (it deliberately
- * doesn't use the Google account ID). That ID is not stable and must not be
- * stored or used as a database key. When the Prisma schema and Auth.js
- * adapter land (Aarushi), the ID becomes the database `User.id` and the
- * session strategy is revisited.
+ * Identity: `src/auth.ts` adds the Prisma adapter, so each Google account is
+ * linked to one `User` row through `Account(provider, providerAccountId)` and
+ * the JWT `sub` is that user's stable database ID. Sessions stay JWT (no
+ * Session table); membership is still checked against the database on each
+ * request, never stored in the token. Accounts are never linked by matching
+ * email alone (`allowDangerousEmailAccountLinking` is not set).
  */
 
 export { SIGN_IN_PATH };
+
+/**
+ * Chooses which OAuth token fields Auth.js stores on the `Account` row.
+ *
+ * BorrowLoop never calls Google APIs, so no access, refresh, or ID tokens are
+ * kept. Auth.js still stores `provider`, `type`, and `providerAccountId` (the
+ * Google `sub`), which is all account linking uses.
+ */
+export function discardOAuthTokens(tokens: object): Record<string, never> {
+  void tokens;
+  return {};
+}
 
 /** Only Google sign-ins are accepted, whatever the account's email domain. */
 export function allowGoogleSignIn(params: {
@@ -59,7 +71,7 @@ export function exposeSessionUserId({ session, token }: { session: Session; toke
 }
 
 export const authConfig = {
-  providers: [Google],
+  providers: [Google({ account: discardOAuthTokens })],
   pages: { signIn: SIGN_IN_PATH },
   session: { strategy: "jwt" },
   callbacks: {

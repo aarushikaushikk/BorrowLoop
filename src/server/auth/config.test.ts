@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   allowGoogleSignIn,
   authConfig,
+  discardOAuthTokens,
   exposeSessionUserId,
   keepServerIssuedToken,
   SIGN_IN_PATH,
@@ -12,9 +13,7 @@ import {
 vi.mock("server-only", () => ({}));
 
 function resolvedProviders() {
-  return authConfig.providers.map((provider) =>
-    typeof provider === "function" ? provider({}) : provider,
-  );
+  return [...authConfig.providers];
 }
 
 function sessionFor(user: Session["user"]): Session {
@@ -39,6 +38,35 @@ describe("authConfig providers", () => {
     // AUTH_GOOGLE_ID and AUTH_GOOGLE_SECRET are read from the environment by
     // Auth.js at runtime.
     expect(JSON.stringify(resolvedProviders())).not.toMatch(/clientId|clientSecret/);
+  });
+
+  it("never links accounts by matching email alone", () => {
+    const [google] = resolvedProviders();
+
+    expect(google).not.toHaveProperty("allowDangerousEmailAccountLinking");
+    expect(google?.options).not.toHaveProperty("allowDangerousEmailAccountLinking");
+  });
+
+  it("stores no Google OAuth tokens on the Account row", () => {
+    const [google] = resolvedProviders();
+
+    expect(google?.options?.account).toBe(discardOAuthTokens);
+  });
+});
+
+describe("discardOAuthTokens", () => {
+  it("drops access, refresh, and ID tokens and every other token field", () => {
+    const tokens = {
+      access_token: "fake-access-token",
+      refresh_token: "fake-refresh-token",
+      id_token: "fake-id-token",
+      expires_at: 1_900_000_000,
+      scope: "openid email profile",
+      token_type: "bearer",
+      session_state: "fake-state",
+    };
+
+    expect(discardOAuthTokens(tokens)).toEqual({});
   });
 });
 
