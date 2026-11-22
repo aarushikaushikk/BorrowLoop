@@ -1,14 +1,16 @@
-import tsconfigPaths from "vite-tsconfig-paths";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  // Resolves the `@/*` → `./src/*` alias from tsconfig.json.
-  plugins: [tsconfigPaths()],
+  resolve: {
+    // The `@/*` → `./src/*` alias from tsconfig.json.
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+  },
   test: {
     // Unit tests target server-side logic (guards, validation, domain rules),
     // so they run in Node rather than a browser-like DOM environment.
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "prisma/**/*.test.ts"],
     restoreMocks: true,
     coverage: {
       provider: "v8",
@@ -24,7 +26,7 @@ export default defineConfig({
         "src/app/**/actions.ts",
         "src/app/**/*-content.tsx",
       ],
-      exclude: ["src/**/*.test.ts", "src/test/**"],
+      exclude: ["src/**/*.test.ts", "src/test/**", "src/generated/**"],
       // The 70% threshold (docs/testing.md) is enforced once application
       // tests exist.
     },

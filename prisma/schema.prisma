@@ -1,0 +1,256 @@
+// BorrowLoop data model, first pass (issue #1).
+// Prisma 7: the connection URL lives in prisma.config.ts, not here.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Enums ----------
+
+enum CommunityRole {
+  MEMBER
+  ADMIN
+}
+
+enum ItemCategory {
+  TOOLS
+  ELECTRONICS
+  KITCHEN
+  OUTDOOR
+  SPORTS
+  BOOKS
+  GAMES
+  PARTY
+  BABY_KIDS
+  OTHER
+}
+
+enum ItemCondition {
+  NEW
+  LIKE_NEW
+  GOOD
+  FAIR
+  POOR
+}
+
+/// PENDING_REVIEW is used when AI moderation flags a listing (US-2).
+enum ItemStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum BorrowRequestStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  CANCELLED
+}
+
+enum LoanStatus {
+  ACTIVE
+  RETURNED
+  OVERDUE
+  CANCELLED
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  DISMISSED
+  ACTIONED
+}
+
+// ---------- Models ----------
+
+/// Fields mirror the Auth.js Prisma adapter's User so US-1 can plug in.
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  memberships     Membership[]
+  items           Item[]
+  borrowRequests  BorrowRequest[]
+  loansAsBorrower Loan[]          @relation("LoanBorrower")
+  loansAsLender   Loan[]          @relation("LoanLender")
+  ratingsGiven    Rating[]        @relation("RatingRater")
+  ratingsReceived Rating[]        @relation("RatingRatee")
+  reportsFiled    Report[]        @relation("ReportReporter")
+  reportsAgainst  Report[]        @relation("ReportReportedUser")
+}
+
+model Community {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  memberships Membership[]
+  items       Item[]
+}
+
+model Membership {
+  id          String        @id @default(cuid())
+  userId      String
+  communityId String
+  role        CommunityRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, communityId])
+  @@index([communityId])
+}
+
+model Item {
+  id          String        @id @default(cuid())
+  ownerId     String
+  communityId String
+  title       String
+  description String
+  category    ItemCategory
+  condition   ItemCondition
+  status      ItemStatus    @default(DRAFT)
+  /// Why moderation held the listing back, if it did.
+  flagReason  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  owner          User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  community      Community       @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  photos         ItemPhoto[]
+  availability   Availability[]
+  borrowRequests BorrowRequest[]
+  loans          Loan[]
+  reports        Report[]
+
+  @@index([communityId, status])
+  @@index([ownerId])
+}
+
+model ItemPhoto {
+  id        String   @id @default(cuid())
+  itemId    String
+  /// Cloudinary secure_url
+  url       String
+  /// Cloudinary public_id, needed to delete or transform the image
+  publicId  String
+  width     Int?
+  height    Int?
+  /// Display order; 0 is the cover photo
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, position])
+}
+
+/// A date range the lender has blocked out (US-3). Both ends inclusive.
+model Availability {
+  id        String   @id @default(cuid())
+  itemId    String
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  note      String?
+  createdAt DateTime @default(now())
+
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, startDate])
+}
+
+model BorrowRequest {
+  id         String              @id @default(cuid())
+  itemId     String
+  borrowerId String
+  startDate  DateTime            @db.Date
+  endDate    DateTime            @db.Date
+  message    String?
+  status     BorrowRequestStatus @default(PENDING)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  item     Item  @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  borrower User  @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
+  loan     Loan?
+
+  @@index([itemId, status])
+  @@index([borrowerId])
+}
+
+/// Created when a BorrowRequest is approved.
+model Loan {
+  id         String     @id @default(cuid())
+  requestId  String     @unique
+  itemId     String
+  borrowerId String
+  lenderId   String
+  startDate  DateTime   @db.Date
+  endDate    DateTime   @db.Date
+  status     LoanStatus @default(ACTIVE)
+  returnedAt DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  request  BorrowRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  item     Item          @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  borrower User          @relation("LoanBorrower", fields: [borrowerId], references: [id], onDelete: Restrict)
+  lender   User          @relation("LoanLender", fields: [lenderId], references: [id], onDelete: Restrict)
+  ratings  Rating[]
+
+  @@index([itemId, startDate])
+  @@index([borrowerId])
+  @@index([lenderId])
+}
+
+/// One rating per participant per loan. score is 1–5 (validated with Zod).
+model Rating {
+  id        String   @id @default(cuid())
+  loanId    String
+  raterId   String
+  rateeId   String
+  score     Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  loan  Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  rater User @relation("RatingRater", fields: [raterId], references: [id], onDelete: Cascade)
+  ratee User @relation("RatingRatee", fields: [rateeId], references: [id], onDelete: Cascade)
+
+  @@unique([loanId, raterId])
+  @@index([rateeId])
+}
+
+/// A report about an item or a user, reviewed by a community admin.
+model Report {
+  id             String       @id @default(cuid())
+  reporterId     String
+  itemId         String?
+  reportedUserId String?
+  reason         String
+  details        String?
+  status         ReportStatus @default(OPEN)
+  createdAt      DateTime     @default(now())
+  resolvedAt     DateTime?
+
+  reporter     User  @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  item         Item? @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  reportedUser User? @relation("ReportReportedUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+}
