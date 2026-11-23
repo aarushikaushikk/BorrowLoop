@@ -117,6 +117,11 @@ const FIELD_ERROR_MESSAGES: Record<SaveListingField, string> = {
   condition: "Choose a condition from the list.",
 };
 
+/** Narrows a Zod issue path segment to a field the save form can highlight. */
+function isSaveListingField(value: unknown): value is SaveListingField {
+  return typeof value === "string" && Object.hasOwn(FIELD_ERROR_MESSAGES, value);
+}
+
 /** The save form: the shared listing fields plus the draft being saved. */
 const saveListingSchema = listingFieldsSchema.extend({
   draftId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
@@ -160,8 +165,8 @@ export async function saveListingAction(
     const fieldErrors: Partial<Record<SaveListingField, string>> = {};
     for (const issue of parsed.error.issues) {
       const field = issue.path[0];
-      if (typeof field === "string" && field in FIELD_ERROR_MESSAGES) {
-        fieldErrors[field as SaveListingField] = FIELD_ERROR_MESSAGES[field as SaveListingField];
+      if (isSaveListingField(field)) {
+        fieldErrors[field] = FIELD_ERROR_MESSAGES[field];
       }
     }
     return { status: "error", message: FIX_FIELDS_MESSAGE, fieldErrors };

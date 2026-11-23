@@ -1,8 +1,8 @@
 import "server-only";
 import { z } from "zod";
-import { ItemCategory, ItemCondition } from "@/generated/prisma/enums";
+import type { ItemCategory, ItemCondition } from "@/generated/prisma/enums";
 import { PROHIBITED_ITEM_CODES, type ProhibitedItemCode } from "@/lib/items/prohibited";
-import { DESCRIPTION_MAX, TITLE_MAX } from "@/lib/validation/listing";
+import { DESCRIPTION_MAX, listingFieldsSchema, TITLE_MAX } from "@/lib/validation/listing";
 import { sendImageMessage, type ImageMessageResult } from "@/server/ai/anthropic-client";
 import { getListingSuggestionModel } from "@/server/ai/config";
 import { withTimeout } from "@/server/ai/with-timeout";
@@ -56,15 +56,11 @@ const FAILED: ListingSuggestionResult = { status: "failed" };
 export const SUGGESTION_TIMEOUT_MS = 10_000;
 
 /**
- * The reply shape. Category and condition must be values of the Prisma enums;
- * title and description are trimmed, then length-checked. `prohibited` is
- * required: a missing safety answer is not treated as safe.
+ * The reply shape: the same listing-field rules the lender's save form uses
+ * (`listingFieldsSchema`), plus the safety answer. `prohibited` is required:
+ * a missing safety answer is not treated as safe.
  */
-const suggestionSchema = z.object({
-  title: z.string().trim().min(1).max(TITLE_MAX),
-  description: z.string().trim().min(1).max(DESCRIPTION_MAX),
-  category: z.enum(ItemCategory),
-  condition: z.enum(ItemCondition),
+const suggestionSchema = listingFieldsSchema.extend({
   prohibited: z.enum(PROHIBITED_ITEM_CODES).nullable(),
 });
 
