@@ -90,3 +90,29 @@ export async function analyzePhotoAction(
     return { status: "error", message: ANALYZE_FAILED_MESSAGE };
   }
 }
+
+/** Form fields that can carry a validation error on the save step. */
+export type SaveListingField = "draftId" | "title" | "description" | "category" | "condition";
+
+/**
+ * The result shown by the save step. On success it says whether the listing is
+ * live or held for review, never why it was held.
+ */
+export type SaveListingState =
+  | { status: "idle" }
+  | { status: "error"; message: string; fieldErrors?: Partial<Record<SaveListingField, string>> }
+  | { status: "saved"; outcome: "published" | "pending_review" };
+
+/**
+ * Saves the lender's edited fields to their draft and publishes it, or holds
+ * it for review.
+ *
+ * RED placeholder (US-2 cycle 10): no logic yet.
+ */
+export async function saveListingAction(
+  _previousState: SaveListingState,
+  formData: FormData,
+): Promise<SaveListingState> {
+  void formData;
+  return { status: "idle" };
+}
