@@ -5,6 +5,7 @@ import type { ProhibitedItemCode } from "@/lib/items/prohibited";
 import { DESCRIPTION_MAX, TITLE_MAX } from "@/lib/validation/listing";
 import { sendImageMessage, type ImageMessageResult } from "@/server/ai/anthropic-client";
 import { getListingSuggestionModel } from "@/server/ai/config";
+import { withTimeout } from "@/server/ai/with-timeout";
 import type { AllowedImageMime } from "@/server/images/validate-upload";
 
 /** Editable listing fields Claude suggests from a photo (US-2). */
@@ -60,35 +61,25 @@ export async function suggestListing(photo: {
   bytes: Uint8Array;
   mime: AllowedImageMime;
 }): Promise<ListingSuggestionResult> {
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timedOut = new Promise<"timed_out">((resolve) => {
-    timer = setTimeout(() => {
-      controller.abort();
-      resolve("timed_out");
-    }, SUGGESTION_TIMEOUT_MS);
-  });
-
   let reply;
   try {
-    const outcome = await Promise.race([
-      sendImageMessage({
-        model: getListingSuggestionModel(),
-        system: SYSTEM_PROMPT,
-        image: { mediaType: photo.mime, base64: Buffer.from(photo.bytes).toString("base64") },
-        instruction: INSTRUCTION,
-        signal: controller.signal,
-      }),
-      timedOut,
-    ]);
-    if (outcome === "timed_out") {
-      return FAILED;
-    }
-    reply = outcome;
+    reply = await withTimeout(
+      (signal) =>
+        sendImageMessage({
+          model: getListingSuggestionModel(),
+          system: SYSTEM_PROMPT,
+          image: { mediaType: photo.mime, base64: Buffer.from(photo.bytes).toString("base64") },
+          instruction: INSTRUCTION,
+          signal,
+        }),
+      SUGGESTION_TIMEOUT_MS,
+    );
   } catch {
     return FAILED;
-  } finally {
-    clearTimeout(timer);
+  }
+
+  if (reply === "timed_out") {
+    return FAILED;
   }
 
   const suggestion = parseSuggestion(reply);
