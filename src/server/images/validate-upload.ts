@@ -1,4 +1,5 @@
 import "server-only";
+import { MAX_UPLOAD_BYTES } from "@/lib/validation/listing";
 
 /** Image types accepted for item photos (US-2). */
 export type AllowedImageMime = "image/jpeg" | "image/png";
@@ -6,9 +7,6 @@ export type AllowedImageMime = "image/jpeg" | "image/png";
 export type UploadValidationResult =
   | { ok: true; mime: AllowedImageMime }
   | { ok: false; error: string };
-
-/** Photos must be strictly under 5 MB (PRD US-2). */
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 const TYPE_ERROR = "Please upload a JPEG or PNG photo.";
 const SIZE_ERROR = "Please upload a photo under 5 MB.";
