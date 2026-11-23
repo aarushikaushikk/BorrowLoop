@@ -37,11 +37,7 @@ export function statusForFlagReason(flagReason: string | null): ModeratedListing
  * missing check holds it with SAFETY_CHECK_FAILED.
  */
 export function decideListingModeration(result: ListingSuggestionResult | null): ListingModeration {
-  if (result === null || result.status === "failed") {
-    return { status: ItemStatus.PENDING_REVIEW, flagReason: SAFETY_CHECK_FAILED };
-  }
-  if (result.prohibited !== null) {
-    return { status: ItemStatus.PENDING_REVIEW, flagReason: result.prohibited };
-  }
-  return { status: ItemStatus.PUBLISHED, flagReason: null };
+  const flagReason: ListingFlagReason | null =
+    result === null || result.status === "failed" ? SAFETY_CHECK_FAILED : result.prohibited;
+  return { status: statusForFlagReason(flagReason), flagReason };
 }
