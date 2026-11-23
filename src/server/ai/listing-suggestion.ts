@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ItemCategory, ItemCondition } from "@/generated/prisma/enums";
 import type { ProhibitedItemCode } from "@/lib/items/prohibited";
 import { DESCRIPTION_MAX, TITLE_MAX } from "@/lib/validation/listing";
-import { sendImageMessage } from "@/server/ai/anthropic-client";
+import { sendImageMessage, type ImageMessageResult } from "@/server/ai/anthropic-client";
 import { getListingSuggestionModel } from "@/server/ai/config";
 import type { AllowedImageMime } from "@/server/images/validate-upload";
 
@@ -66,20 +66,29 @@ export async function suggestListing(photo: {
     return FAILED;
   }
 
-  if (reply.stopReason === "refusal") {
+  const suggestion = parseSuggestion(reply);
+  if (!suggestion) {
     return FAILED;
+  }
+  return { status: "ok", suggestion, prohibited: null };
+}
+
+/**
+ * Turns Claude's reply into a suggestion, or returns null when the reply can't
+ * be trusted: a refusal, text that isn't JSON, or fields that fail the schema.
+ */
+function parseSuggestion(reply: ImageMessageResult): ListingSuggestion | null {
+  if (reply.stopReason === "refusal") {
+    return null;
   }
 
   let body: unknown;
   try {
     body = JSON.parse(reply.text);
   } catch {
-    return FAILED;
+    return null;
   }
 
   const parsed = suggestionSchema.safeParse(body);
-  if (!parsed.success) {
-    return FAILED;
-  }
-  return { status: "ok", suggestion: parsed.data, prohibited: null };
+  return parsed.success ? parsed.data : null;
 }
