@@ -59,6 +59,8 @@ function sentParams(): Record<string, unknown> {
 beforeEach(() => {
   create.mockReset();
   constructed.mockReset();
+  // A configured key by default; the missing-key tests below override it.
+  vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
   create.mockResolvedValue(message([{ type: "text", text: '{"title":"Drill"}' }], "end_turn"));
 });
 
@@ -158,5 +160,51 @@ describe("sendImageMessage client", () => {
 
     expect(constructed).toHaveBeenCalledTimes(1);
     expect(constructed).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "test-key-from-env" }));
+  });
+});
+
+// Cycle 12b: the key comes only from ANTHROPIC_API_KEY. When it's missing, the
+// wrapper refuses to run instead of letting the SDK fall back to other
+// credentials (ANTHROPIC_AUTH_TOKEN, a local `ant auth login` profile).
+describe("sendImageMessage without ANTHROPIC_API_KEY", () => {
+  const AUTH_TOKEN_MARKER = "sk-ant-auth-token-secret-marker";
+
+  /** A fresh copy of the module, so no client is cached from earlier tests. */
+  async function freshModule() {
+    vi.resetModules();
+    return import("./anthropic-client");
+  }
+
+  it.each([
+    ["unset", undefined],
+    ["empty", ""],
+    ["whitespace only", "   "],
+  ])("throws a configuration error, and creates no client and sends no request, when the key is %s", async (_label, value) => {
+    vi.stubEnv("ANTHROPIC_API_KEY", value);
+    // Another credential the SDK would otherwise fall back to.
+    vi.stubEnv("ANTHROPIC_AUTH_TOKEN", AUTH_TOKEN_MARKER);
+    const fresh = await freshModule();
+
+    await expect(fresh.sendImageMessage(REQUEST)).rejects.toThrow(/ANTHROPIC_API_KEY/);
+    expect(constructed).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("names the missing variable without including any key or token value", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    vi.stubEnv("ANTHROPIC_AUTH_TOKEN", AUTH_TOKEN_MARKER);
+    const fresh = await freshModule();
+
+    const error = await fresh.sendImageMessage(REQUEST).then(
+      () => null,
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    const message = error instanceof Error ? error.message : "";
+    expect(message).toMatch(/ANTHROPIC_API_KEY/);
+    expect(message).toMatch(/not (set|configured)/i);
+    expect(message).not.toContain(AUTH_TOKEN_MARKER);
+    expect(message).not.toContain("test-key");
   });
 });
