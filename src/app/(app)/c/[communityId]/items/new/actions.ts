@@ -7,7 +7,7 @@ import { suggestListing, type ListingSuggestion } from "@/server/ai/listing-sugg
 import { getCommunityAccess } from "@/server/auth/community-access";
 import { createDraftListing } from "@/server/dal/listing-drafts";
 import { decideListingModeration } from "@/server/domain/listing-moderation";
-import { validateUpload } from "@/server/images/validate-upload";
+import { UPLOAD_TYPE_ERROR, validateUpload } from "@/server/images/validate-upload";
 
 /**
  * The result shown by the photo step of the new-listing form. Never includes
@@ -20,7 +20,6 @@ export type AnalyzePhotoState =
   | { status: "ready"; draftId: string; suggestion: null; manualEntry: true };
 
 const ANALYZE_FAILED_MESSAGE = "We couldn't process that photo. Refresh the page and try again.";
-const MISSING_PHOTO_MESSAGE = "Please upload a JPEG or PNG photo.";
 
 /** Draft fields when Claude gave no suggestion; the lender fills them in. */
 const MANUAL_ENTRY_FIELDS: ListingSuggestion = {
@@ -46,11 +45,9 @@ const MANUAL_ENTRY_FIELDS: ListingSuggestion = {
  * Unexpected errors return one generic message, never internal details.
  */
 export async function analyzePhotoAction(
-  previousState: AnalyzePhotoState,
+  _previousState: AnalyzePhotoState,
   formData: FormData,
 ): Promise<AnalyzePhotoState> {
-  void previousState;
-
   const { user, access } = await getCommunityAccess({
     params: { communityId: formData.get("communityId") },
     level: "member",
@@ -62,7 +59,7 @@ export async function analyzePhotoAction(
 
   const photo = formData.get("photo");
   if (!(photo instanceof File)) {
-    return { status: "error", message: MISSING_PHOTO_MESSAGE };
+    return { status: "error", message: UPLOAD_TYPE_ERROR };
   }
   const validation = await validateUpload(photo);
   if (!validation.ok) {

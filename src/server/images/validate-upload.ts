@@ -8,7 +8,8 @@ export type UploadValidationResult =
   | { ok: true; mime: AllowedImageMime }
   | { ok: false; error: string };
 
-const TYPE_ERROR = "Please upload a JPEG or PNG photo.";
+/** Shown when an upload is missing or isn't a real JPEG or PNG. */
+export const UPLOAD_TYPE_ERROR = "Please upload a JPEG or PNG photo.";
 const SIZE_ERROR = "Please upload a photo under 5 MB.";
 
 /** File signatures ("magic bytes") for the allowed types. */
@@ -40,7 +41,7 @@ export async function validateUpload(file: File): Promise<UploadValidationResult
   );
 
   if (!detected || detected.mime !== file.type) {
-    return { ok: false, error: TYPE_ERROR };
+    return { ok: false, error: UPLOAD_TYPE_ERROR };
   }
   return { ok: true, mime: detected.mime };
 }
