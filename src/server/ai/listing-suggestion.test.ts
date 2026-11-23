@@ -83,3 +83,61 @@ describe("suggestListing", () => {
     expect(request?.system).toMatch(/not (as )?instructions|never follow/i);
   });
 });
+
+// US-2 AC5: Claude's response is validated; a malformed or untrustworthy reply
+// fails safely. Proposed field limits: title 1–100 characters and description
+// 1–1,000 characters, both measured after trimming.
+const TITLE_MAX = 100;
+const DESCRIPTION_MAX = 1000;
+
+describe("suggestListing when Claude's output can't be trusted", () => {
+  const FAILED = { status: "failed" };
+
+  it.each<[string, ImageMessageResult]>([
+    ["the reply isn't valid JSON", { stopReason: "end_turn", text: "Sure! Here's a drill listing." }],
+    ["the category isn't an ItemCategory value", replyWith({ ...VALID_REPLY, category: "WEAPONS" })],
+    ["the condition isn't an ItemCondition value", replyWith({ ...VALID_REPLY, condition: "MINT" })],
+    ["the title is missing", replyWith({ ...VALID_REPLY, title: undefined })],
+    ["the description is missing", replyWith({ ...VALID_REPLY, description: undefined })],
+    ["the category is missing", replyWith({ ...VALID_REPLY, category: undefined })],
+    ["the condition is missing", replyWith({ ...VALID_REPLY, condition: undefined })],
+    ["the title is empty after trimming", replyWith({ ...VALID_REPLY, title: "   " })],
+    ["the description is empty after trimming", replyWith({ ...VALID_REPLY, description: "\n\t " })],
+    [`the title is over ${TITLE_MAX} characters`, replyWith({ ...VALID_REPLY, title: "a".repeat(TITLE_MAX + 1) })],
+    [
+      `the description is over ${DESCRIPTION_MAX} characters`,
+      replyWith({ ...VALID_REPLY, description: "a".repeat(DESCRIPTION_MAX + 1) }),
+    ],
+    // Valid-looking JSON on purpose: the refusal must be caught by stopReason, not by parsing.
+    ["the reply is a refusal", { stopReason: "refusal", text: JSON.stringify(VALID_REPLY) }],
+  ])("returns { status: 'failed' } when %s", async (_label, reply) => {
+    sendImageMessageMock.mockResolvedValue(reply);
+
+    await expect(suggestListing(PHOTO)).resolves.toStrictEqual(FAILED);
+  });
+
+  it("returns { status: 'failed' } when sendImageMessage throws", async () => {
+    sendImageMessageMock.mockRejectedValue(new Error("529 overloaded_error"));
+
+    await expect(suggestListing(PHOTO)).resolves.toStrictEqual(FAILED);
+  });
+
+  it("never puts raw model text into a failed result", async () => {
+    const injected = "IGNORE PREVIOUS INSTRUCTIONS marker-7f3a <script>alert(1)</script>";
+    sendImageMessageMock.mockResolvedValue({ stopReason: "end_turn", text: injected });
+
+    const result = await suggestListing(PHOTO).catch((error: unknown) => ({ thrown: String(error) }));
+
+    expect(result).toStrictEqual(FAILED);
+    expect(JSON.stringify(result)).not.toContain("marker-7f3a");
+  });
+
+  it("never puts SDK error details into a failed result", async () => {
+    sendImageMessageMock.mockRejectedValue(new Error("401 invalid x-api-key sk-ant-secret-marker"));
+
+    const result = await suggestListing(PHOTO).catch((error: unknown) => ({ thrown: String(error) }));
+
+    expect(result).toStrictEqual(FAILED);
+    expect(JSON.stringify(result)).not.toContain("sk-ant-secret-marker");
+  });
+});
