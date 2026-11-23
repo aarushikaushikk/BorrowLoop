@@ -18,7 +18,7 @@ export type ImageMessageRequest = {
   /** The user-turn text that accompanies the image. */
   instruction: string;
   /** The reply's JSON shape, sent to Claude as a structured-output format. */
-  outputSchema?: z.ZodType;
+  outputSchema: z.ZodType;
   signal?: AbortSignal;
 };
 
@@ -52,8 +52,8 @@ function getClient(): Anthropic {
  * - The image goes first, inline as base64, then the instruction text.
  * - `effort: "low"` keeps latency down; thinking is left at the model default
  *   (it can't be disabled on Opus 5.5). No refusal fallback model is used.
- * - When `outputSchema` is given, it becomes a structured-output format. The
- *   caller still validates the returned text itself.
+ * - `outputSchema` becomes a structured-output format. The caller still
+ *   validates the returned text itself.
  * - A refusal is returned as `stopReason: "refusal"`, not thrown. SDK errors
  *   (network, rate limit, abort) propagate unchanged.
  */
@@ -75,10 +75,7 @@ export async function sendImageMessage(request: ImageMessageRequest): Promise<Im
           ],
         },
       ],
-      output_config: {
-        effort: "low",
-        ...(request.outputSchema ? { format: zodOutputFormat(request.outputSchema) } : {}),
-      },
+      output_config: { effort: "low", format: zodOutputFormat(request.outputSchema) },
     },
     { signal: request.signal },
   );

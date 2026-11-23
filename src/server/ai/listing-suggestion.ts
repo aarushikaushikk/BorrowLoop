@@ -91,6 +91,7 @@ export async function suggestListing(photo: {
           system: SYSTEM_PROMPT,
           image: { mediaType: photo.mime, base64: Buffer.from(photo.bytes).toString("base64") },
           instruction: INSTRUCTION,
+          outputSchema: suggestionSchema,
           signal,
         }),
       SUGGESTION_TIMEOUT_MS,
