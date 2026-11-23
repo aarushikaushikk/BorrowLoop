@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ItemCategory, ItemCondition } from "@/generated/prisma/enums";
+import { DESCRIPTION_MAX, TITLE_MAX } from "@/lib/validation/listing";
 import type { ImageMessageRequest, ImageMessageResult } from "./anthropic-client";
 
 const { sendImageMessageMock } = vi.hoisted(() => ({
@@ -85,10 +86,8 @@ describe("suggestListing", () => {
 });
 
 // US-2 AC5: Claude's response is validated; a malformed or untrustworthy reply
-// fails safely. Proposed field limits: title 1–100 characters and description
-// 1–1,000 characters, both measured after trimming.
-const TITLE_MAX = 100;
-const DESCRIPTION_MAX = 1000;
+// fails safely. Field limits (TITLE_MAX, DESCRIPTION_MAX) are measured after
+// trimming and shared with the listing form.
 
 describe("suggestListing when Claude's output can't be trusted", () => {
   const FAILED = { status: "failed" };
