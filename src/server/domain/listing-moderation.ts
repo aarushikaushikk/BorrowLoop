@@ -1,6 +1,6 @@
 import "server-only";
 import { ItemStatus } from "@/generated/prisma/enums";
-import type { ProhibitedItemCode, SAFETY_CHECK_FAILED } from "@/lib/items/prohibited";
+import { SAFETY_CHECK_FAILED, type ProhibitedItemCode } from "@/lib/items/prohibited";
 import type { ListingSuggestionResult } from "@/server/ai/listing-suggestion";
 
 // Pure listing moderation rules (US-2 / US-8). No I/O and no Prisma client, so
@@ -17,10 +17,16 @@ export type ListingModeration = {
  * Decides the status a new listing is saved with, from the AI check's result
  * (`null` when there is no AI result at all).
  *
- * RED placeholder (US-2 cycle 7): returns DRAFT, which is never a correct
- * answer here, so every case fails on an assertion.
+ * Fails closed: only a successful check with nothing prohibited publishes.
+ * A prohibited code holds the listing for review with that code; a failed or
+ * missing check holds it with SAFETY_CHECK_FAILED.
  */
 export function decideListingModeration(result: ListingSuggestionResult | null): ListingModeration {
-  void result;
-  return { status: ItemStatus.DRAFT, flagReason: null };
+  if (result === null || result.status === "failed") {
+    return { status: ItemStatus.PENDING_REVIEW, flagReason: SAFETY_CHECK_FAILED };
+  }
+  if (result.prohibited !== null) {
+    return { status: ItemStatus.PENDING_REVIEW, flagReason: result.prohibited };
+  }
+  return { status: ItemStatus.PUBLISHED, flagReason: null };
 }
