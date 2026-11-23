@@ -20,6 +20,15 @@ export type ListingModeration = {
 };
 
 /**
+ * The status for a listing carrying `flagReason`: no flag publishes, any flag
+ * holds the listing for review. Takes a plain string because Item.flagReason
+ * is free text in the database; an unrecognised value still holds the listing.
+ */
+export function statusForFlagReason(flagReason: string | null): ModeratedListingStatus {
+  return flagReason === null ? ItemStatus.PUBLISHED : ItemStatus.PENDING_REVIEW;
+}
+
+/**
  * Decides the status a new listing is saved with, from the AI check's result
  * (`null` when there is no AI result at all).
  *
