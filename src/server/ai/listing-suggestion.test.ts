@@ -140,3 +140,32 @@ describe("suggestListing when Claude's output can't be trusted", () => {
     expect(JSON.stringify(result)).not.toContain("sk-ant-secret-marker");
   });
 });
+
+// Characterization tests: pin behaviour that already exists (added after cycle 4
+// GREEN), so they pass on their first run by design.
+describe("suggestListing field boundaries and trimming (characterization)", () => {
+  it(`accepts a title of exactly ${TITLE_MAX} characters`, async () => {
+    const title = "a".repeat(TITLE_MAX);
+    sendImageMessageMock.mockResolvedValue(replyWith({ ...VALID_REPLY, title }));
+
+    await expect(suggestListing(PHOTO)).resolves.toMatchObject({ status: "ok", suggestion: { title } });
+  });
+
+  it(`accepts a description of exactly ${DESCRIPTION_MAX} characters`, async () => {
+    const description = "a".repeat(DESCRIPTION_MAX);
+    sendImageMessageMock.mockResolvedValue(replyWith({ ...VALID_REPLY, description }));
+
+    await expect(suggestListing(PHOTO)).resolves.toMatchObject({ status: "ok", suggestion: { description } });
+  });
+
+  it("returns the title and description trimmed", async () => {
+    sendImageMessageMock.mockResolvedValue(
+      replyWith({ ...VALID_REPLY, title: "  Cordless drill \n", description: "\t18V drill with two batteries.  " }),
+    );
+
+    await expect(suggestListing(PHOTO)).resolves.toMatchObject({
+      status: "ok",
+      suggestion: { title: "Cordless drill", description: "18V drill with two batteries." },
+    });
+  });
+});
