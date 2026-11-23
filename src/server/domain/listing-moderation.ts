@@ -8,8 +8,14 @@ import type { ListingSuggestionResult } from "@/server/ai/listing-suggestion";
 
 export type ListingFlagReason = ProhibitedItemCode | typeof SAFETY_CHECK_FAILED;
 
+/**
+ * The statuses moderation can assign to a new listing. DRAFT and ARCHIVED are
+ * excluded by the type, so they can't be returned by mistake.
+ */
+export type ModeratedListingStatus = typeof ItemStatus.PUBLISHED | typeof ItemStatus.PENDING_REVIEW;
+
 export type ListingModeration = {
-  status: ItemStatus;
+  status: ModeratedListingStatus;
   flagReason: ListingFlagReason | null;
 };
 
