@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ItemCategory, ItemCondition } from "@/generated/prisma/enums";
+import { PROHIBITED_ITEM_CODES } from "@/lib/items/prohibited";
 import { DESCRIPTION_MAX, TITLE_MAX } from "@/lib/validation/listing";
 import type { ImageMessageRequest, ImageMessageResult } from "./anthropic-client";
 
@@ -233,5 +234,72 @@ describe("suggestListing timeout", () => {
 
     await vi.advanceTimersByTimeAsync(SUGGESTION_TIMEOUT_MS);
     expect(signal?.aborted).toBe(false);
+  });
+});
+
+// US-2 AC: a photo of a prohibited item is flagged for admin review. Claude's
+// reply carries `prohibited`: one code from PROHIBITED_ITEM_CODES, or null.
+// suggestListing only reports the code; holding the listing happens later.
+describe("suggestListing prohibited-item detection", () => {
+  const SUGGESTION = {
+    title: VALID_REPLY.title,
+    description: VALID_REPLY.description,
+    category: VALID_REPLY.category,
+    condition: VALID_REPLY.condition,
+  };
+
+  it("returns ok with the suggestion and prohibited: 'WEAPON', so the lender can still edit it", async () => {
+    sendImageMessageMock.mockResolvedValue(replyWith({ ...VALID_REPLY, prohibited: "WEAPON" }));
+
+    await expect(suggestListing(PHOTO)).resolves.toStrictEqual({
+      status: "ok",
+      suggestion: SUGGESTION,
+      prohibited: "WEAPON",
+    });
+  });
+
+  it.each(PROHIBITED_ITEM_CODES)("passes through the code %s", async (code) => {
+    sendImageMessageMock.mockResolvedValue(replyWith({ ...VALID_REPLY, prohibited: code }));
+
+    await expect(suggestListing(PHOTO)).resolves.toMatchObject({ status: "ok", prohibited: code });
+  });
+
+  it("returns ok with prohibited: null when nothing is prohibited", async () => {
+    sendImageMessageMock.mockResolvedValue(replyWith({ ...VALID_REPLY, prohibited: null }));
+
+    await expect(suggestListing(PHOTO)).resolves.toStrictEqual({
+      status: "ok",
+      suggestion: SUGGESTION,
+      prohibited: null,
+    });
+  });
+
+  it.each([
+    ["a code that isn't in the list", "KNIFE"],
+    ["a lower-case code", "weapon"],
+    ["the server-only failure code", "SAFETY_CHECK_FAILED"],
+    ["an empty string", ""],
+    ["a boolean", true],
+  ])("returns { status: 'failed' } for %s (%j)", async (_label, prohibited) => {
+    sendImageMessageMock.mockResolvedValue(replyWith({ ...VALID_REPLY, prohibited }));
+
+    await expect(suggestListing(PHOTO)).resolves.toStrictEqual({ status: "failed" });
+  });
+
+  it("returns { status: 'failed' } when prohibited is missing, because no safety answer isn't a safe answer", async () => {
+    sendImageMessageMock.mockResolvedValue(replyWith({ ...VALID_REPLY, prohibited: undefined }));
+
+    await expect(suggestListing(PHOTO)).resolves.toStrictEqual({ status: "failed" });
+  });
+
+  it("tells Claude every code in PROHIBITED_ITEM_CODES", async () => {
+    await suggestListing(PHOTO);
+
+    expect(sendImageMessageMock).toHaveBeenCalledTimes(1);
+    const request = sendImageMessageMock.mock.calls[0]?.[0];
+    const promptText = `${request?.system ?? ""}\n${request?.instruction ?? ""}`;
+    for (const code of PROHIBITED_ITEM_CODES) {
+      expect(promptText).toContain(code);
+    }
   });
 });
