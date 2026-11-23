@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import type { ReactElement } from "react";
@@ -41,11 +42,19 @@ export async function CommunityListingsContent({ params }: { params: Promise<unk
 
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight">{community.name}</h1>
-        {community.description ? (
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{community.description}</p>
-        ) : null}
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">{community.name}</h1>
+          {community.description ? (
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{community.description}</p>
+          ) : null}
+        </div>
+        <Link
+          href={`/c/${community.id}/items/new`}
+          className="inline-flex h-10 shrink-0 items-center self-start rounded-full bg-emerald-700 px-5 text-sm font-medium text-white transition-colors hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+        >
+          List an item
+        </Link>
       </header>
 
       <section aria-labelledby="listings-heading" className="flex flex-col gap-4">

@@ -9,7 +9,7 @@ export const COMMUNITIES_PATH = "/communities";
  * route params, for use as a sign-in return path. Falls back to
  * /communities when the community ID isn't valid.
  */
-export function communityPathFor(params: unknown, subpath: "" | "/admin" = ""): string {
+export function communityPathFor(params: unknown, subpath: "" | "/admin" | "/items/new" = ""): string {
   const parsed = communityParamsSchema.safeParse(params);
   return parsed.success ? `/c/${parsed.data.communityId}${subpath}` : COMMUNITIES_PATH;
 }
