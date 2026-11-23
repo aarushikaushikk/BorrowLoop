@@ -1,5 +1,6 @@
 import "server-only";
 import type { StopReason } from "@anthropic-ai/sdk/resources/messages/messages";
+import type { z } from "zod";
 import type { AllowedImageMime } from "@/server/images/validate-upload";
 
 /**
@@ -14,6 +15,8 @@ export type ImageMessageRequest = {
   image: { mediaType: AllowedImageMime; base64: string };
   /** The user-turn text that accompanies the image. */
   instruction: string;
+  /** The reply's JSON shape, sent to Claude as a structured-output format. */
+  outputSchema?: z.ZodType;
   signal?: AbortSignal;
 };
 
