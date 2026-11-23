@@ -6,8 +6,8 @@ import type { AuthenticatedUser } from "@/server/auth/guards";
 import { getDb } from "@/server/db/client";
 import type { ListingFlagReason, ModeratedListingStatus } from "@/server/domain/listing-moderation";
 
-/** The Prisma delegate draft listings use. */
-type DraftDb = Pick<PrismaClient, "item">;
+/** The Prisma delegates draft listings use. */
+type DraftDb = Pick<PrismaClient, "item" | "membership" | "$transaction">;
 
 /** What the analyze step stores as a draft. `ownerId` is never part of it. */
 export type DraftListingInput = {
@@ -32,7 +32,8 @@ export type PublishDraftInput = {
 export type PublishDraftResult = { status: ModeratedListingStatus } | "not_found";
 
 /**
- * Saves a DRAFT listing with its first photo for `user`.
+ * Saves a DRAFT listing with its first photo for `user`, or returns
+ * "not_found" when `user` isn't a member of the community.
  *
  * RED placeholder (US-2 cycle 8): no database access yet.
  */
@@ -40,7 +41,7 @@ export async function createDraftListing(
   user: AuthenticatedUser,
   input: DraftListingInput,
   getClient: () => DraftDb = getDb,
-): Promise<{ id: string }> {
+): Promise<{ id: string } | "not_found"> {
   void user;
   void input;
   void getClient;

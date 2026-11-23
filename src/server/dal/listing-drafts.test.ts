@@ -12,15 +12,25 @@ import {
   type PublishDraftInput,
 } from "./listing-drafts";
 
-const { create, findFirst, updateMany } = vi.hoisted(() => ({
+const { create, findFirst, updateMany, findMembership, transaction, txState } = vi.hoisted(() => ({
   create: vi.fn(),
   findFirst: vi.fn(),
   updateMany: vi.fn(),
+  findMembership: vi.fn(),
+  transaction: vi.fn(),
+  /** True while a $transaction callback is running. */
+  txState: { active: false, createdInTransaction: [] as boolean[], membershipCheckedInTransaction: [] as boolean[] },
 }));
 
-// Stand-in for the one delegate the module uses; the generated client type is
-// far larger than this fake, hence the cast (same pattern as listings.test.ts).
-const fakeDb = { item: { create, findFirst, updateMany } } as unknown as Pick<PrismaClient, "item">;
+// Stand-in for the delegates the module uses; the generated client type is far
+// larger than this fake, hence the cast (same pattern as listings.test.ts).
+// `$transaction` runs its callback with the same delegates, so each call can
+// record whether it happened inside the transaction.
+const fakeDb = {
+  item: { create, findFirst, updateMany },
+  membership: { findUnique: findMembership },
+  $transaction: transaction,
+} as unknown as Pick<PrismaClient, "item" | "membership" | "$transaction">;
 const getClient = () => fakeDb;
 
 const SESSION_USER = { id: "session-user-1" };
@@ -64,7 +74,28 @@ beforeEach(() => {
   create.mockReset();
   findFirst.mockReset();
   updateMany.mockReset();
-  create.mockResolvedValue({ id: DRAFT_ID });
+  findMembership.mockReset();
+  transaction.mockReset();
+  txState.active = false;
+  txState.createdInTransaction = [];
+  txState.membershipCheckedInTransaction = [];
+
+  create.mockImplementation(async () => {
+    txState.createdInTransaction.push(txState.active);
+    return { id: DRAFT_ID };
+  });
+  findMembership.mockImplementation(async () => {
+    txState.membershipCheckedInTransaction.push(txState.active);
+    return { role: "MEMBER" };
+  });
+  transaction.mockImplementation(async (run: (tx: typeof fakeDb) => Promise<unknown>) => {
+    txState.active = true;
+    try {
+      return await run(fakeDb);
+    } finally {
+      txState.active = false;
+    }
+  });
   findFirst.mockResolvedValue({ flagReason: null });
   updateMany.mockResolvedValue({ count: 1 });
 });
@@ -106,6 +137,26 @@ describe("createDraftListing", () => {
 
   it("returns the new draft's id", async () => {
     await expect(createDraftListing(SESSION_USER, DRAFT_INPUT, getClient)).resolves.toEqual({ id: DRAFT_ID });
+  });
+
+  it("checks the session user's membership in the community, and creates the draft, inside one transaction", async () => {
+    await createDraftListing(SESSION_USER, DRAFT_INPUT, getClient);
+
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(findMembership).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId_communityId: { userId: SESSION_USER.id, communityId: COMMUNITY_ID } },
+      }),
+    );
+    expect(txState.membershipCheckedInTransaction).toStrictEqual([true]);
+    expect(txState.createdInTransaction).toStrictEqual([true]);
+  });
+
+  it("returns 'not_found' and creates nothing when the user isn't a member of the community", async () => {
+    findMembership.mockResolvedValue(null);
+
+    await expect(createDraftListing(SESSION_USER, DRAFT_INPUT, getClient)).resolves.toBe("not_found");
+    expect(create).not.toHaveBeenCalled();
   });
 });
 
