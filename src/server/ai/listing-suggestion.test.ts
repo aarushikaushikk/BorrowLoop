@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ItemCategory, ItemCondition } from "@/generated/prisma/enums";
 import { DESCRIPTION_MAX, TITLE_MAX } from "@/lib/validation/listing";
 import type { ImageMessageRequest, ImageMessageResult } from "./anthropic-client";
@@ -12,7 +12,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("./anthropic-client", () => ({ sendImageMessage: sendImageMessageMock }));
 vi.mock("./config", () => ({ getListingSuggestionModel: () => "test-listing-model" }));
 
-import { suggestListing } from "./listing-suggestion";
+import { SUGGESTION_TIMEOUT_MS, suggestListing } from "./listing-suggestion";
 
 // US-2 AC: for a valid image, Claude suggests title, category, condition and
 // description. Category and condition come from the Prisma enums.
@@ -167,5 +167,71 @@ describe("suggestListing field boundaries and trimming (characterization)", () =
       status: "ok",
       suggestion: { title: "Cordless drill", description: "18V drill with two batteries." },
     });
+  });
+});
+
+// US-2 AC: suggestions arrive within 10 seconds, or the lender gets the manual
+// form. suggestListing gives up after SUGGESTION_TIMEOUT_MS and aborts the call.
+describe("suggestListing timeout", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Records when a promise settles, without awaiting it. */
+  function track<T>(promise: Promise<T>) {
+    const state: { settled: boolean; value?: T } = { settled: false };
+    void promise.then((value) => {
+      state.settled = true;
+      state.value = value;
+    });
+    return state;
+  }
+
+  const neverResolves = () => new Promise<ImageMessageResult>(() => {});
+
+  it("is still waiting at 1 ms before the timeout, then returns { status: 'failed' } at the timeout", async () => {
+    sendImageMessageMock.mockImplementation(neverResolves);
+    const result = track(suggestListing(PHOTO));
+
+    await vi.advanceTimersByTimeAsync(SUGGESTION_TIMEOUT_MS - 1);
+    expect(result.settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(result).toStrictEqual({ settled: true, value: { status: "failed" } });
+  });
+
+  it("aborts the signal passed to sendImageMessage when the timeout fires", async () => {
+    sendImageMessageMock.mockImplementation(neverResolves);
+    void suggestListing(PHOTO);
+
+    expect(sendImageMessageMock).toHaveBeenCalledTimes(1);
+    const signal = sendImageMessageMock.mock.calls[0]?.[0]?.signal;
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal?.aborted).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(SUGGESTION_TIMEOUT_MS);
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it("returns ok for a reply that arrives in time, and clears the timer so nothing fires afterward", async () => {
+    sendImageMessageMock.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(replyWith(VALID_REPLY)), 500)),
+    );
+    const result = track(suggestListing(PHOTO));
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(result.settled).toBe(true);
+    expect(result.value).toMatchObject({ status: "ok" });
+
+    const signal = sendImageMessageMock.mock.calls[0]?.[0]?.signal;
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(vi.getTimerCount()).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(SUGGESTION_TIMEOUT_MS);
+    expect(signal?.aborted).toBe(false);
   });
 });

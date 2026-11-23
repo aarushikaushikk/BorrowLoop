@@ -32,6 +32,9 @@ const INSTRUCTION = [
 
 const FAILED: ListingSuggestionResult = { status: "failed" };
 
+/** How long to wait for Claude before giving up (US-2: suggestions within 10 s). */
+export const SUGGESTION_TIMEOUT_MS = 10_000;
+
 /**
  * The reply shape. Category and condition must be values of the Prisma enums;
  * title and description are trimmed, then length-checked.
