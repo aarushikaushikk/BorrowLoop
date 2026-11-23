@@ -52,21 +52,43 @@ const suggestionSchema = z.object({
  * Never throws. Any reply that can't be trusted (an API error, a refusal,
  * non-JSON text, or fields that fail the schema) returns `{ status: "failed" }`
  * with no model text or error details attached.
+ *
+ * Gives up after SUGGESTION_TIMEOUT_MS: the request is aborted through the
+ * signal passed to sendImageMessage and the result is `{ status: "failed" }`.
  */
 export async function suggestListing(photo: {
   bytes: Uint8Array;
   mime: AllowedImageMime;
 }): Promise<ListingSuggestionResult> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<"timed_out">((resolve) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      resolve("timed_out");
+    }, SUGGESTION_TIMEOUT_MS);
+  });
+
   let reply;
   try {
-    reply = await sendImageMessage({
-      model: getListingSuggestionModel(),
-      system: SYSTEM_PROMPT,
-      image: { mediaType: photo.mime, base64: Buffer.from(photo.bytes).toString("base64") },
-      instruction: INSTRUCTION,
-    });
+    const outcome = await Promise.race([
+      sendImageMessage({
+        model: getListingSuggestionModel(),
+        system: SYSTEM_PROMPT,
+        image: { mediaType: photo.mime, base64: Buffer.from(photo.bytes).toString("base64") },
+        instruction: INSTRUCTION,
+        signal: controller.signal,
+      }),
+      timedOut,
+    ]);
+    if (outcome === "timed_out") {
+      return FAILED;
+    }
+    reply = outcome;
   } catch {
     return FAILED;
+  } finally {
+    clearTimeout(timer);
   }
 
   const suggestion = parseSuggestion(reply);
