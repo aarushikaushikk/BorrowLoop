@@ -1,11 +1,13 @@
 "use server";
 
-import { ItemCategory, ItemCondition } from "@/generated/prisma/enums";
+import { z } from "zod";
+import { ItemCategory, ItemCondition, ItemStatus } from "@/generated/prisma/enums";
 import { COMMUNITIES_PATH } from "@/lib/auth/routes";
 import { uploadImage } from "@/lib/cloudinary";
+import { DESCRIPTION_MAX, listingFieldsSchema, TITLE_MAX } from "@/lib/validation/listing";
 import { suggestListing, type ListingSuggestion } from "@/server/ai/listing-suggestion";
 import { getCommunityAccess } from "@/server/auth/community-access";
-import { createDraftListing } from "@/server/dal/listing-drafts";
+import { createDraftListing, publishDraftListing } from "@/server/dal/listing-drafts";
 import { decideListingModeration } from "@/server/domain/listing-moderation";
 import { UPLOAD_TYPE_ERROR, validateUpload } from "@/server/images/validate-upload";
 
@@ -103,16 +105,79 @@ export type SaveListingState =
   | { status: "error"; message: string; fieldErrors?: Partial<Record<SaveListingField, string>> }
   | { status: "saved"; outcome: "published" | "pending_review" };
 
+const SAVE_FAILED_MESSAGE = "We couldn't save your listing. Refresh the page and try again.";
+const FIX_FIELDS_MESSAGE = "Please fix the highlighted fields.";
+
+/** User-facing messages per field, so Zod's internal wording never reaches the page. */
+const FIELD_ERROR_MESSAGES: Record<SaveListingField, string> = {
+  draftId: "This draft is no longer valid. Refresh the page and try again.",
+  title: `Enter a title of 1 to ${TITLE_MAX} characters.`,
+  description: `Enter a description of 1 to ${DESCRIPTION_MAX} characters.`,
+  category: "Choose a category from the list.",
+  condition: "Choose a condition from the list.",
+};
+
+/** The save form: the shared listing fields plus the draft being saved. */
+const saveListingSchema = listingFieldsSchema.extend({
+  draftId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+});
+
 /**
  * Saves the lender's edited fields to their draft and publishes it, or holds
  * it for review.
  *
- * RED placeholder (US-2 cycle 10): no logic yet.
+ * - Session and membership go through the US-1 guard first, as in
+ *   `analyzePhotoAction`.
+ * - Only the five named fields are read from the form. `status`, `flagReason`,
+ *   `ownerId` and the like are never read; the data layer derives the owner
+ *   from the session and the status from the flag stored on the draft.
+ * - A draft that doesn't match (another user's, already published, or a
+ *   removed member's) and any unexpected error both return the same generic
+ *   message, so the reply never reveals whether a draft exists.
+ * - On success the state says published or held for review, never why.
  */
 export async function saveListingAction(
   _previousState: SaveListingState,
   formData: FormData,
 ): Promise<SaveListingState> {
-  void formData;
-  return { status: "idle" };
+  const { user, access } = await getCommunityAccess({
+    params: { communityId: formData.get("communityId") },
+    level: "member",
+    callbackPath: COMMUNITIES_PATH,
+  });
+  if (access.decision !== "allow") {
+    return { status: "error", message: SAVE_FAILED_MESSAGE };
+  }
+
+  const parsed = saveListingSchema.safeParse({
+    draftId: formData.get("draftId"),
+    title: formData.get("title"),
+    description: formData.get("description"),
+    category: formData.get("category"),
+    condition: formData.get("condition"),
+  });
+  if (!parsed.success) {
+    const fieldErrors: Partial<Record<SaveListingField, string>> = {};
+    for (const issue of parsed.error.issues) {
+      const field = issue.path[0];
+      if (typeof field === "string" && field in FIELD_ERROR_MESSAGES) {
+        fieldErrors[field as SaveListingField] = FIELD_ERROR_MESSAGES[field as SaveListingField];
+      }
+    }
+    return { status: "error", message: FIX_FIELDS_MESSAGE, fieldErrors };
+  }
+
+  const { draftId, ...fields } = parsed.data;
+  try {
+    const result = await publishDraftListing({ id: user.id }, { itemId: draftId, ...fields });
+    if (result === "not_found") {
+      return { status: "error", message: SAVE_FAILED_MESSAGE };
+    }
+    return {
+      status: "saved",
+      outcome: result.status === ItemStatus.PUBLISHED ? "published" : "pending_review",
+    };
+  } catch {
+    return { status: "error", message: SAVE_FAILED_MESSAGE };
+  }
 }
