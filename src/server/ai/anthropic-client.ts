@@ -40,9 +40,18 @@ let client: Anthropic | undefined;
  * Creates the SDK client on first use, so importing this module never needs a
  * key. The key is read from ANTHROPIC_API_KEY on the server only (no
  * NEXT_PUBLIC_ variant, never sent to the browser).
+ *
+ * Throws a configuration error when the variable is unset or blank, before any
+ * client exists, so the SDK can't fall back to other credentials
+ * (ANTHROPIC_AUTH_TOKEN, a local `ant auth login` profile). The message names
+ * the variable only, never a key or token value.
  */
 function getClient(): Anthropic {
-  client ??= new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error("Claude is not configured: ANTHROPIC_API_KEY is not set.");
+  }
+  client ??= new Anthropic({ apiKey });
   return client;
 }
 
