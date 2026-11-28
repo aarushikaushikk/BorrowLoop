@@ -98,3 +98,15 @@ export function toDbDate(day: CalendarDate): Date {
 export function fromDbDate(date: Date): CalendarDate {
   return utcCalendarDateOf(date);
 }
+
+/**
+ * A readable, locale-independent label for an inclusive range of calendar
+ * dates, such as "Dec 1 – Dec 5, 2026".
+ *
+ * RED placeholder (cycle 3).
+ */
+export function formatDateRange(start: CalendarDate, end: CalendarDate): string {
+  void start;
+  void end;
+  return "";
+}

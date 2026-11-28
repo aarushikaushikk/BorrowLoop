@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fromDbDate, toDbDate, todayUtc } from "@/lib/dates/calendar-date";
+import { formatDateRange, fromDbDate, toDbDate, todayUtc } from "@/lib/dates/calendar-date";
 
 describe("todayUtc", () => {
   it("returns the UTC date at the very end of a UTC day", () => {
@@ -67,5 +67,25 @@ describe("fromDbDate", () => {
 
   it.each(["2026-11-27", "2026-12-31", "2028-02-29", "2027-01-01"])("round-trips %s through toDbDate", (day) => {
     expect(fromDbDate(toDbDate(day))).toBe(day);
+  });
+});
+
+describe("formatDateRange", () => {
+  it.each([
+    ["a single day", "2026-12-01", "2026-12-01", "Dec 1, 2026"],
+    ["a range within one month", "2026-12-03", "2026-12-04", "Dec 3 – Dec 4, 2026"],
+    ["a range across months in one year", "2026-11-28", "2026-12-05", "Nov 28 – Dec 5, 2026"],
+    ["a range across years", "2026-12-30", "2027-01-02", "Dec 30, 2026 – Jan 2, 2027"],
+    ["a range ending on a leap day", "2028-02-28", "2028-02-29", "Feb 28 – Feb 29, 2028"],
+  ])("formats %s", (_label, start, end, expected) => {
+    expect(formatDateRange(start, end)).toBe(expected);
+  });
+
+  it.each([
+    ["an impossible start date", "2027-02-29", "2027-03-01"],
+    ["an impossible end date", "2027-02-01", "2027-02-30"],
+    ["a malformed date", "12/01/2026", "2026-12-02"],
+  ])("throws a RangeError for %s", (_label, start, end) => {
+    expect(() => formatDateRange(start, end)).toThrow(RangeError);
   });
 });

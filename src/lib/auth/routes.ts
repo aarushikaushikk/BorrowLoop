@@ -15,6 +15,18 @@ export function communityPathFor(params: unknown, subpath: "" | "/admin" | "/ite
 }
 
 /**
+ * The path of an item page (`/c/<communityId>/items/<itemId>`) built from
+ * untrusted params, for links and sign-in return paths. Falls back to
+ * /communities when the params aren't valid.
+ *
+ * RED placeholder (cycle 3).
+ */
+export function itemPathFor(params: unknown): string {
+  void params;
+  return COMMUNITIES_PATH;
+}
+
+/**
  * The sign-in URL that returns to `callbackPath` afterwards. Unsafe
  * destinations fall back to the default (see `parseCallbackUrl`).
  */
