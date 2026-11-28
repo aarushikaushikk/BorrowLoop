@@ -96,14 +96,14 @@ export function parseBlockedRange(input: unknown, today: CalendarDate): BlockedR
   return { ok: true, value: { startDate: start.data, endDate: end.data, note: note.data ?? null } };
 }
 
-/** Opaque database IDs from untrusted input; the same shape `communityIdSchema` accepts. */
-const RECORD_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+// All table IDs share one opaque format (Prisma `cuid()`), so item and block
+// IDs reuse the community ID schema. Tightening that schema tightens all three.
 
 /** An item ID from untrusted input (route params or form data). */
-export const itemIdSchema = z.string().regex(RECORD_ID_PATTERN);
+export const itemIdSchema = communityIdSchema;
 
 /** An availability block ID from untrusted form data. */
-export const availabilityIdSchema = z.string().regex(RECORD_ID_PATTERN);
+export const availabilityIdSchema = communityIdSchema;
 
 /**
  * Route params of /c/[communityId]/items/[itemId]. Strict, so extra keys such
