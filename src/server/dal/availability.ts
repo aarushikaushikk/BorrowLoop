@@ -77,26 +77,23 @@ export async function getItemAvailability(
 
   const { ownerId, availability, ...item } = row;
   if (ownerId === user.id) {
+    // Owner only: the private note is added here and nowhere else.
     return {
       viewer: "owner",
       item,
-      blocks: availability.map((block) => ({
-        id: block.id,
-        startDate: fromDbDate(block.startDate),
-        endDate: fromDbDate(block.endDate),
-        note: block.note,
-      })),
+      blocks: availability.map((block) => ({ ...toPublicBlock(block), note: block.note })),
     };
   }
-  return {
-    viewer: "member",
-    item,
-    blocks: availability.map((block) => ({
-      id: block.id,
-      startDate: fromDbDate(block.startDate),
-      endDate: fromDbDate(block.endDate),
-    })),
-  };
+  return { viewer: "member", item, blocks: availability.map(toPublicBlock) };
+}
+
+/**
+ * The fields of a block any member may see. Builds a new object from the
+ * public fields only, so a private field on the row (the note) can't pass
+ * through.
+ */
+function toPublicBlock(block: { id: string; startDate: Date; endDate: Date }): AvailabilityBlock {
+  return { id: block.id, startDate: fromDbDate(block.startDate), endDate: fromDbDate(block.endDate) };
 }
 
 /** Rows returned by the lock-and-authorize statements. Anything else fails closed. */
