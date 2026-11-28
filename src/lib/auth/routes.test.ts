@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMMUNITIES_PATH, communityPathFor, SIGN_IN_PATH, signInPathFor } from "@/lib/auth/routes";
+import { COMMUNITIES_PATH, communityPathFor, itemPathFor, SIGN_IN_PATH, signInPathFor } from "@/lib/auth/routes";
 
 describe("signInPathFor", () => {
   it("uses /sign-in as the sign-in route", () => {
@@ -38,5 +38,24 @@ describe("communityPathFor", () => {
     ["clx0community0001"],
   ])("falls back to /communities for %j", (params) => {
     expect(communityPathFor(params, "/admin")).toBe(COMMUNITIES_PATH);
+  });
+});
+
+describe("itemPathFor", () => {
+  it("builds the item path from a valid community ID and item ID", () => {
+    expect(itemPathFor({ communityId: "clx0community0001", itemId: "clx0item000000001" })).toBe(
+      "/c/clx0community0001/items/clx0item000000001",
+    );
+  });
+
+  it.each([
+    [{ communityId: "clx0community0001", itemId: "bad id" }],
+    [{ communityId: "clx0community0001", itemId: "../admin" }],
+    [{ communityId: "//evil.example", itemId: "clx0item000000001" }],
+    [{ communityId: "clx0community0001", itemId: "clx0item000000001", ownerId: "u1" }],
+    [{ communityId: "clx0community0001" }],
+    [null],
+  ])("falls back to /communities for %j", (params) => {
+    expect(itemPathFor(params)).toBe(COMMUNITIES_PATH);
   });
 });

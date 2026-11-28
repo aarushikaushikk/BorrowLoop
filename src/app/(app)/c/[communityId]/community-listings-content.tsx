@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import type { ReactElement } from "react";
-import { communityPathFor } from "@/lib/auth/routes";
+import { communityPathFor, itemPathFor } from "@/lib/auth/routes";
 import { ITEM_CATEGORY_LABELS, ITEM_CONDITION_LABELS } from "@/lib/items/labels";
 import { getCommunityAccess } from "@/server/auth/community-access";
 import { getCommunityWithListings, type CommunityListing } from "@/server/dal/listings";
@@ -71,7 +71,7 @@ export async function CommunityListingsContent({ params }: { params: Promise<unk
         ) : (
           <ul aria-labelledby="listings-heading" className="grid gap-3 sm:grid-cols-2">
             {community.listings.map((listing) => (
-              <ListingCard key={listing.id} listing={listing} />
+              <ListingCard key={listing.id} communityId={community.id} listing={listing} />
             ))}
           </ul>
         )}
@@ -80,7 +80,7 @@ export async function CommunityListingsContent({ params }: { params: Promise<unk
   );
 }
 
-function ListingCard({ listing }: { listing: CommunityListing }): ReactElement {
+function ListingCard({ communityId, listing }: { communityId: string; listing: CommunityListing }): ReactElement {
   return (
     <li className="flex flex-col gap-2 rounded-2xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-zinc-900">
       <h3 className="text-base font-semibold">{listing.title}</h3>
@@ -88,6 +88,12 @@ function ListingCard({ listing }: { listing: CommunityListing }): ReactElement {
         {ITEM_CATEGORY_LABELS[listing.category]} · {ITEM_CONDITION_LABELS[listing.condition]}
       </p>
       <p className="text-sm text-zinc-700 dark:text-zinc-300">{listing.description}</p>
+      <Link
+        href={itemPathFor({ communityId, itemId: listing.id })}
+        className="self-start text-sm font-medium text-emerald-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 dark:text-emerald-400"
+      >
+        View item<span className="sr-only">{`: ${listing.title}`}</span>
+      </Link>
     </li>
   );
 }

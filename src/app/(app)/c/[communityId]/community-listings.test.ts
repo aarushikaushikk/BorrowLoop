@@ -165,3 +165,24 @@ describe("CommunityListingsContent rendering", () => {
     expect(html).toContain("&lt;img src=x onerror=alert(2)&gt;");
   });
 });
+
+describe("CommunityListingsContent navigation", () => {
+  it("links each listing to its item page, naming the item in the link text", async () => {
+    const html = await renderFor({ communityId: COMMUNITY_ID });
+
+    // Item detail links only: the "List an item" link (/items/new) is checked separately below.
+    const links = [...html.matchAll(/<a[^>]*href="(\/c\/[^"]*\/items\/[^"]*)"[^>]*>(.*?)<\/a>/g)]
+      .map((m) => ({ href: m[1], text: m[2]!.replace(/<[^>]+>/g, "") }))
+      .filter((link) => link.href !== `/c/${COMMUNITY_ID}/items/new`);
+    expect(links).toEqual([
+      { href: `/c/${COMMUNITY_ID}/items/item-1`, text: expect.stringContaining("Cordless drill") },
+      { href: `/c/${COMMUNITY_ID}/items/item-2`, text: expect.stringContaining("Board game night box") },
+    ]);
+  });
+
+  it("keeps the List an item link", async () => {
+    const html = await renderFor({ communityId: COMMUNITY_ID });
+
+    expect(html).toMatch(new RegExp(`<a[^>]*href="/c/${COMMUNITY_ID}/items/new"[^>]*>List an item</a>`));
+  });
+});
