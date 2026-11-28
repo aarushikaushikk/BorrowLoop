@@ -2,9 +2,47 @@
 
 Each version entry records what changed, why, and the evidence behind it. The active skill is always `SKILL.md` in this folder. There is only one `/add-feature` command.
 
+## v2 (2026-11-28, Issue #13)
+
+**Status:** active. The second real demonstration is **pending**. v2 hasn't been run on an issue yet, and no v2 execution evidence exists. The human will supply the annotated logs and screenshots separately.
+
+**v1 archive:** `history/v1/` holds verbatim copies of v1's `SKILL.md` (as `SKILL.v1.md`, so it doesn't register as a command) and its three templates, from commit `bbf3491`. `history/v1/README.md` lists the blob hashes. The v1 entry below planned `history/SKILL.v1.md`; the `v1/` folder was used so the templates sit beside it.
+
+### Evidence: first real run of v1
+
+US-3 (availability), issue #8, PR #44. Final implementation commit `54cef33`. Results as reported by the human:
+
+- Three RED/GREEN/REFACTOR cycles: nine completed TDD checkpoints and eight human commits.
+- 201 new unit tests and 31 new integration tests. 713/713 unit tests and 820/820 regression tests across 49 files passed. All four real-PostgreSQL concurrency tests passed.
+- Unit-only coverage: 96.21% statements, 95.34% branches, 97.54% functions, 96.32% lines.
+- Lint, typegen, TypeScript and the production build passed. The core manual browser checks passed.
+- Not completed: separate-account browser privacy verification. The automated privacy tests passed.
+
+### Changes from v1, and the US-3 observation behind each
+
+| v2 change | US-3 observation | Where |
+| --- | --- | --- |
+| Environment failures (suite didn't load) are told apart from behavioural RED failures. A broken runner is recorded once with its exit code, not retried, and handed to the human as exact Windows CMD commands | Vitest failed at suite-loading time in Claude Code's shell, while the identical commands succeeded in native Windows CMD | SKILL.md §4.2, §12; checkpoint template |
+| Reinstalling dependencies (`npm ci`, `npm install`) needs approval, and a suite-load failure isn't treated as evidence of broken dependencies | An incorrect dependency diagnosis led to an unnecessary `npm ci` | SKILL.md §2 rule 3, §4.2 |
+| Checkpoint and final-report templates record executor, environment, command, result and exit code, accept human-pasted results, and mark pending results as "awaiting human result" | The v1 templates didn't accommodate human-executed verification | templates/checkpoint.md, templates/final-report.md |
+| Intake and plan share one stop when nothing blocks. Cycles are sized to the work. The commit check opens the next step instead of being its own exchange. Named approvals can be given with the plan | Checkpoint and confirmation overhead made the workflow unnecessarily long | SKILL.md §6 step 4, §8, §9, §11 |
+| No REFACTOR report or commit when there's nothing meaningful to change. The GREEN report states "none needed" with a reason | Cycle 3 needed no meaningful refactor, so no artificial refactor commit was made | SKILL.md §9; checkpoint template |
+| A genuinely wrong test can be corrected before the RED commit, with a short explanation and the human's approval. Weakening tests to reach GREEN stays forbidden, and GREEN still runs the full regression suite | Two legitimate test corrections were needed before RED commits | SKILL.md §2 rule 5, §9 RED table |
+| Isolated mode names the accepted environments (WSL, native, Docker, PGlite, CI), requires an identity check before migrations or database tests, and allows reuse of an already verified database. Shared databases still need explicit authorization | Docker was unavailable. An isolated PostgreSQL 18.6 in Ubuntu on WSL 2 supported all integration and concurrency tests | SKILL.md §4.1, §12; plan template |
+| Unit, integration, concurrency, coverage (with its scope), static component and real browser evidence are reported separately. Concurrency and browser checks are planned only when relevant. Unexecuted checks are listed with a reason and leave the affected criterion at NEEDS VERIFICATION | The run needed clearer lines between static component tests, real-database tests and browser checks. Separate-account browser privacy verification wasn't completed | SKILL.md §8, §10; plan and final-report templates |
+| A review framework named in the definition of done (for example C.L.E.A.R.) is listed as a human step with the human's or course's definition. The skill doesn't define it | The US-1 definition of done lists "PR reviewed with C.L.E.A.R." (`logs/us-01.md`) | SKILL.md §10 step 8; final-report template |
+
+### Unchanged
+
+The invocation interface and frontmatter, the human-only Git policy, `.env*` and secret handling, database safety classification and unit-only mode, ownership and TDD checks, the dry run, and RED/GREEN boundaries with a human commit at each.
+
+### Not addressed in v2
+
+The optional-file probe noted under v1 ("Possible future improvement") wasn't a problem in the US-3 run, so it stays unchanged.
+
 ## v1 (2026-11-26, Issue #13)
 
-**Status:** active. The commit SHA will be recorded here once the human has committed and merged v1.
+**Status:** superseded by v2. Committed in `bbf3491` and archived verbatim in `history/v1/`. First real run: US-3, issue #8, PR #44 (see v2).
 
 ### What v1 does
 
