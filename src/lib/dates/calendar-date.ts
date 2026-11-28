@@ -99,14 +99,32 @@ export function fromDbDate(date: Date): CalendarDate {
   return utcCalendarDateOf(date);
 }
 
+/** Fixed English month names, so labels don't depend on the runtime's ICU data or time zone. */
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
 /**
  * A readable, locale-independent label for an inclusive range of calendar
- * dates, such as "Dec 1 – Dec 5, 2026".
+ * dates:
+ * - one day: "Dec 1, 2026"
+ * - within a year: "Nov 28 – Dec 5, 2026"
+ * - across years: "Dec 30, 2026 – Jan 2, 2027"
  *
- * RED placeholder (cycle 3).
+ * Works on the date parts directly (no Date or time zone involved). Throws a
+ * RangeError if either value isn't a real calendar date.
  */
 export function formatDateRange(start: CalendarDate, end: CalendarDate): string {
-  void start;
-  void end;
-  return "";
+  const from = parseParts(start);
+  const to = parseParts(end);
+  if (!from || !to) {
+    throw new RangeError("Not a calendar date (YYYY-MM-DD)");
+  }
+  const monthDay = (parts: { month: number; day: number }) => `${MONTH_NAMES[parts.month - 1]} ${parts.day}`;
+
+  if (start === end) {
+    return `${monthDay(from)}, ${from.year}`;
+  }
+  if (from.year === to.year) {
+    return `${monthDay(from)} – ${monthDay(to)}, ${to.year}`;
+  }
+  return `${monthDay(from)}, ${from.year} – ${monthDay(to)}, ${to.year}`;
 }

@@ -1,4 +1,5 @@
 import { parseCallbackUrl } from "@/lib/validation/auth";
+import { itemRouteParamsSchema } from "@/lib/validation/availability";
 import { communityParamsSchema } from "@/lib/validation/community";
 
 export const SIGN_IN_PATH = "/sign-in";
@@ -17,13 +18,11 @@ export function communityPathFor(params: unknown, subpath: "" | "/admin" | "/ite
 /**
  * The path of an item page (`/c/<communityId>/items/<itemId>`) built from
  * untrusted params, for links and sign-in return paths. Falls back to
- * /communities when the params aren't valid.
- *
- * RED placeholder (cycle 3).
+ * /communities when the params aren't valid, including extra keys (strict).
  */
 export function itemPathFor(params: unknown): string {
-  void params;
-  return COMMUNITIES_PATH;
+  const parsed = itemRouteParamsSchema.safeParse(params);
+  return parsed.success ? `/c/${parsed.data.communityId}/items/${parsed.data.itemId}` : COMMUNITIES_PATH;
 }
 
 /**
